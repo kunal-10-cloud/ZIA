@@ -60,13 +60,19 @@ logger = logging.getLogger(__name__)
 def run_migrations():
     """Run Alembic migrations on app startup"""
     try:
-        alembic_ini_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "alembic.ini"
-        )
+        # Find alembic.ini - it's at request/alembic.ini
+        # From: /app/backend/api/main.py -> go up to /app
+        script_dir = os.path.dirname(__file__)
+        backend_dir = os.path.dirname(script_dir)  # /app/backend
+        app_dir = os.path.dirname(backend_dir)  # /app (which is request/)
+        
+        alembic_ini_path = os.path.join(app_dir, "alembic.ini")
+        migrations_dir = os.path.join(app_dir, "migrations")
+        
         alembic_cfg = Config(alembic_ini_path)
-        alembic_cfg.set_main_option(
-            "sqlalchemy.url", settings.DATABASE_URL
-        )
+        alembic_cfg.set_main_option("script_location", migrations_dir)
+        alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+        
         command.upgrade(alembic_cfg, "head")
         logger.info("Migrations completed successfully")
     except Exception as e:
