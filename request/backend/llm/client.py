@@ -43,7 +43,7 @@ async def call_haiku(system_prompt: str, messages: list) -> str:
     response = await haiku_client.chat.completions.create(
         model=settings.CLAUDE_HAIKU_MODEL,
         messages=[{"role": "system", "content": system_prompt}] + messages,
-        max_tokens": 512,
+        "max_tokens": 512,
         extra_headers={
             "HTTP-Referer": "https://employlabs.com",
             "X-Title": "Zia Career Companion",

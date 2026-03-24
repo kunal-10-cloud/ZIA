@@ -1,0 +1,115 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ZIA — Project-wide .gitignore
+# Prevents secrets, dependencies, cache, and build artifacts from being committed
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── SECRETS & ENVIRONMENT ────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.json
+credentials.json
+
+# ─── PYTHON ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─── VIRTUAL ENVIRONMENTS ────────────────────────────────────────────────────
+venv/
+env/
+ENV/
+.venv
+env.bak/
+venv.bak/
+virtualenv/
+
+# ─── IDE & EDITOR ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+*.sublime-project
+*.sublime-workspace
+
+# ─── STREAMLIT ───────────────────────────────────────────────────────────────
+.streamlit/secrets.toml
+.streamlit/config.toml
+frontend/.streamlit/secrets.toml
+frontend/.streamlit/config.toml
+
+# ─── DATABASE & CACHE ────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+redis_data/
+data/*.db
+
+# ─── NODE (if using any frontend JS) ──────────────────────────────────────────
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# ─── DOCKER ──────────────────────────────────────────────────────────────────
+.docker/
+docker-compose.override.yml
+.dockerignore
+
+# ─── LOGS ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.gz
+
+# ─── OS JUNK ─────────────────────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# ─── MISC ────────────────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.swp
+.vscode-server/
+.vscode-server-insiders/
+.history/
+
+# ─── ALEMBIC / MIGRATIONS ────────────────────────────────────────────────────
+request/migrations/__pycache__/
+request/migrations/versions/__pycache__/
+
+# ─── LOCAL DEVELOPMENT ───────────────────────────────────────────────────────
+.env.development.local
+.DS_Store
+frontend/.streamlit/
+```
+frontend/.streamlit/secrets.toml
+
+# ─── KEEP THESE (important for repo) ──────────────────────────────────────────
+# !.github/
+# !.gitkeep
+# !requirements.txt
