@@ -60,23 +60,30 @@ logger = logging.getLogger(__name__)
 def run_migrations():
     """Run Alembic migrations on app startup"""
     try:
-        # Find alembic.ini - it's at request/alembic.ini
-        # From: /app/backend/api/main.py -> go up to /app
-        script_dir = os.path.dirname(__file__)
-        backend_dir = os.path.dirname(script_dir)  # /app/backend
-        app_dir = os.path.dirname(backend_dir)  # /app (which is request/)
+        import sys
         
-        alembic_ini_path = os.path.join(app_dir, "alembic.ini")
-        migrations_dir = os.path.join(app_dir, "migrations")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        app_root = os.path.dirname(os.path.dirname(script_dir))
         
-        alembic_cfg = Config(alembic_ini_path)
+        alembic_ini = os.path.join(app_root, "alembic.ini")
+        migrations_dir = os.path.join(app_root, "migrations")
+        
+        if not os.path.exists(alembic_ini):
+            logger.warning(f"alembic.ini not found at {alembic_ini}")
+            return
+        
+        if not os.path.exists(migrations_dir):
+            logger.warning(f"migrations directory not found at {migrations_dir}")
+            return
+        
+        alembic_cfg = Config(alembic_ini)
         alembic_cfg.set_main_option("script_location", migrations_dir)
         alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
         
         command.upgrade(alembic_cfg, "head")
         logger.info("Migrations completed successfully")
     except Exception as e:
-        logger.warning(f"Migration warning: {e}")
+        logger.warning(f"Migration error: {e}")
 
 
 # ── Session store (module-level, shared across requests) ───────────────────────
