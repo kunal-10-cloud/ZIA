@@ -60,7 +60,13 @@ logger = logging.getLogger(__name__)
 def run_migrations():
     """Run Alembic migrations on app startup"""
     try:
-        alembic_cfg = Config("alembic.ini")
+        alembic_ini_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "alembic.ini"
+        )
+        alembic_cfg = Config(alembic_ini_path)
+        alembic_cfg.set_main_option(
+            "sqlalchemy.url", settings.DATABASE_URL
+        )
         command.upgrade(alembic_cfg, "head")
         logger.info("Migrations completed successfully")
     except Exception as e:
