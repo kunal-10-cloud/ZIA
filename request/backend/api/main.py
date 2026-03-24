@@ -31,6 +31,7 @@ import uuid
 import logging
 from typing import Optional
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
+from alembic.config import Config
+from alembic import command
 
 from backend.orchestrator.conversation_engine import (
     ConversationEngine,
@@ -51,6 +54,19 @@ from backend.models.base import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
+
+# ── Auto-run migrations on startup ─────────────────────────────────────────────
+
+def run_migrations():
+    """Run Alembic migrations on app startup"""
+    try:
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Migrations completed successfully")
+    except Exception as e:
+        logger.warning(f"Migration warning: {e}")
+
+
 # ── Session store (module-level, shared across requests) ───────────────────────
 session_store = SessionStore(redis_url=settings.REDIS_URL)
 
@@ -59,6 +75,7 @@ session_store = SessionStore(redis_url=settings.REDIS_URL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    run_migrations()
     await session_store.connect()
     yield
     await session_store.disconnect()
