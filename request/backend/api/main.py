@@ -29,9 +29,11 @@ Usage:
 
 import uuid
 import logging
+import asyncio
 from typing import Optional
 from contextlib import asynccontextmanager
 import os
+import httpx
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +53,38 @@ from backend.models import CompanionProfile, CompanionConversation, Conversation
 from backend.models.base import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
+
+
+# ── Health check ping task (keep Render active) ───────────────────────────────
+
+ping_task: Optional[asyncio.Task] = None
+
+
+async def health_check_pinger():
+    """
+    Periodically ping the /health endpoint to prevent Render from spinning down
+    the service due to inactivity. Render's free tier spins down after 15 min of
+    no requests, which delays the next request by 30 sec. This pings every 5 min.
+    """
+    await asyncio.sleep(5)  # Give app time to fully start
+    
+    # Get the backend URL from environment or default to localhost
+    backend_url = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:8000")
+    health_endpoint = f"{backend_url}/health"
+    
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(health_endpoint)
+                if response.status_code == 200:
+                    logger.debug(f"Health ping successful: {response.status_code}")
+                else:
+                    logger.warning(f"Health ping returned {response.status_code}")
+        except Exception as e:
+            logger.warning(f"Health ping failed (will retry): {e}")
+        
+        # Sleep for 5 minutes before next ping
+        await asyncio.sleep(300)
 
 
 # ── Auto-run migrations on startup ─────────────────────────────────────────────
@@ -80,9 +114,27 @@ session_store = SessionStore(redis_url=settings.REDIS_URL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global ping_task
+    
+    # Startup
     await create_database_tables()
     await session_store.connect()
+    
+    # Start health check pinger (only in production on Render)
+    if os.getenv("ENVIRONMENT", "development") == "production":
+        ping_task = asyncio.create_task(health_check_pinger())
+        logger.info("✓ Health check pinger started (5 min interval)")
+    
     yield
+    
+    # Shutdown
+    if ping_task is not None:
+        ping_task.cancel()
+        try:
+            await ping_task
+        except asyncio.CancelledError:
+            logger.info("Health check pinger stopped")
+    
     await session_store.disconnect()
 
 
