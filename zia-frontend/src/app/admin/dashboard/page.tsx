@@ -63,11 +63,6 @@ export default function AdminDashboard() {
     
     setIsAuth(true);
     fetchConversations();
-
-    // Auto-refresh conversations every 3 seconds
-    const intervalId = setInterval(fetchConversations, 3000);
-    
-    return () => clearInterval(intervalId);
   }, [router]);
 
   const fetchConversations = async () => {
