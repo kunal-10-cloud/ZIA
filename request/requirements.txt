@@ -1,0 +1,56 @@
+# Zia — Python Dependencies
+# Install: pip install -r requirements.txt
+# In Docker: handled automatically by Dockerfile
+
+# ─── AI / LLM ─────────────────────────────────────────────────────────────────
+openai>=1.50.0            # Claude API client — Sonnet for conversations, Haiku for tasks
+tiktoken>=0.7.0             # Token counting — used to enforce ≤10,700 prompt budget
+
+# ─── Web Framework ────────────────────────────────────────────────────────────
+fastapi>=0.115.0            # Async web framework — all API routes and webhooks
+uvicorn[standard]>=0.30.0   # ASGI server to run FastAPI
+python-multipart>=0.0.9     # For file upload support (resume reviewer, Phase E)
+httpx>=0.27.0               # Async HTTP client — used for outbound API calls
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]>=2.0.0  # ORM — async version for FastAPI compatibility
+asyncpg>=0.29.0             # Async PostgreSQL driver (used by SQLAlchemy)
+psycopg2-binary>=2.9.9      # Sync PostgreSQL driver (used by Alembic migrations)
+alembic>=1.13.0             # Database migrations — tracks schema changes
+pgvector>=0.3.0             # pgvector Python client — for memory similarity search
+
+# ─── Cache / Queue ────────────────────────────────────────────────────────────
+redis>=5.0.0                # Redis client — cache + Celery broker
+celery>=5.4.0               # Background task queue — async tasks after each turn
+celery[redis]>=5.4.0        # Celery Redis backend
+
+# ─── Voice ────────────────────────────────────────────────────────────────────
+livekit>=0.18.0             # LiveKit Agents SDK — real-time voice calls
+livekit-agents>=0.10.0      # LiveKit AI agents framework
+deepgram-sdk>=3.5.0         # Deepgram STT — speech-to-text, Nova-2 model
+elevenlabs>=1.5.0           # ElevenLabs TTS — Zia's voice (Phase A-C)
+# cartesia                  # Uncomment in Phase D for better Hinglish support
+
+# ─── WhatsApp ────────────────────────────────────────────────────────────────
+twilio>=9.0.0               # Twilio — WhatsApp messages + voice notes
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+pydantic>=2.8.0             # Data validation — used in all models
+pydantic-settings>=2.4.0    # Settings from .env file — all config lives in settings.py
+python-dotenv>=1.0.0        # Load .env file
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+structlog>=24.0.0           # Structured JSON logging — includes candidate_id, ring, latency
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+pytest>=8.0.0               # Test runner
+pytest-asyncio>=0.23.0      # Async test support for FastAPI
+pytest-cov>=5.0.0           # Coverage reports
+httpx>=0.27.0               # For testing FastAPI endpoints (async test client)
+faker>=25.0.0               # Generates fake candidate data for tests
+
+# ─── Code Quality ─────────────────────────────────────────────────────────────
+ruff>=0.6.0                 # Fast linter — checks for common errors
+black>=24.0.0               # Code formatter
+isort>=5.13.0               # Import sorter
+mypy>=1.11.0                # Type checker — catches type errors before runtime

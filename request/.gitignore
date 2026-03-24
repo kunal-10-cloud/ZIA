@@ -1,0 +1,56 @@
+# ─── Environment ──────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.production
+*.env
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# (keep docker-compose.yml but ignore local overrides)
+docker-compose.override.yml
+
+# ─── Node / Next.js ──────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+dashboard/.env.local
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ─── Eval Reports ─────────────────────────────────────────────────────────────
+eval_reports/*.json
+
+# ─── Data (keep structure, not sensitive data) ───────────────────────────────
+# Salary data is checked in (it's structured seed data, not private)
+# Nothing to ignore here yet
+
+# ─── Secrets / Keys ───────────────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
