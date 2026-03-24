@@ -39,8 +39,6 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
-from alembic.config import Config
-from alembic import command
 
 from backend.orchestrator.conversation_engine import (
     ConversationEngine,
@@ -57,38 +55,21 @@ logger = logging.getLogger(__name__)
 
 # ── Auto-run migrations on startup ─────────────────────────────────────────────
 
-def run_migrations():
-    """Run Alembic migrations on app startup"""
+async def create_database_tables():
+    """Create database tables from models if they don't exist"""
     try:
-        # Find alembic.ini by searching upward from this file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        alembic_ini = None
+        from sqlalchemy.ext.asyncio import create_async_engine
+        from backend.models.base import Base
         
-        for _ in range(5):  # Search up to 5 levels
-            test_path = os.path.join(current_dir, "alembic.ini")
-            if os.path.exists(test_path):
-                alembic_ini = test_path
-                break
-            current_dir = os.path.dirname(current_dir)
+        engine = create_async_engine(settings.DATABASE_URL, echo=False)
         
-        if not alembic_ini:
-            logger.warning("Could not find alembic.ini anywhere in parent directories")
-            return
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         
-        migrations_dir = os.path.join(os.path.dirname(alembic_ini), "migrations")
-        
-        if not os.path.exists(migrations_dir):
-            logger.warning(f"migrations directory not found at {migrations_dir}")
-            return
-        
-        alembic_cfg = Config(alembic_ini)
-        alembic_cfg.set_main_option("script_location", migrations_dir)
-        alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-        
-        command.upgrade(alembic_cfg, "head")
-        logger.info("Migrations completed successfully")
+        await engine.dispose()
+        logger.info("Database tables created successfully")
     except Exception as e:
-        logger.warning(f"Migration error: {e}")
+        logger.warning(f"Database table creation warning: {e}")
 
 
 # ── Session store (module-level, shared across requests) ───────────────────────
@@ -99,7 +80,7 @@ session_store = SessionStore(redis_url=settings.REDIS_URL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    run_migrations()
+    await create_database_tables()
     await session_store.connect()
     yield
     await session_store.disconnect()
