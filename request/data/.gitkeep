@@ -1,0 +1,2 @@
+# This file ensures the data/ directory is tracked by git and can be built by Docker
+# Salary benchmarks and other data files will be added here in future phases
