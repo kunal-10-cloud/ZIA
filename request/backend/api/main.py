@@ -97,6 +97,7 @@ async def get_db() -> AsyncSession:
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    phone: Optional[str] = None  # Phone number to identify candidate
 
 
 class ChatResponse(BaseModel):
@@ -227,6 +228,16 @@ async def chat(
     """
     session_id = request.session_id
     session = None
+    is_new_conversation = False
+    
+    # Get candidate ID from phone number if provided
+    candidate_id = uuid.UUID("00000000-0000-0000-0000-000000000001")  # default
+    if request.phone:
+        stmt = select(CompanionProfile).where(CompanionProfile.phone == request.phone)
+        result_obj = await db.execute(stmt)
+        profile = result_obj.scalars().first()
+        if profile:
+            candidate_id = profile.id
 
     # ── Resolve session ────────────────────────────────────────────────────────
     if session_id:
@@ -234,8 +245,8 @@ async def chat(
 
     if session is None:
         session_id = str(uuid.uuid4())
-        candidate_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
         conversation_id = uuid.uuid4()
+        is_new_conversation = True
 
         session = create_session(
             candidate_id=candidate_id,
@@ -261,6 +272,46 @@ async def chat(
     await session_store.save(session_id, session)
 
     timestamp = datetime.now(timezone.utc).isoformat()
+
+    # ── Save or update conversation in database ────────────────────────────────
+    if is_new_conversation:
+        conversation = CompanionConversation(
+            id=session_id,
+            candidate_id=candidate_id,
+            channel="web",
+            started_at=datetime.now(timezone.utc),
+            turn_count=1,
+            messages=[{
+                "turn": 1,
+                "user_message": request.message,
+                "zia_response": result["response_text"],
+                "active_skill": result["active_skill"],
+                "timestamp": timestamp,
+                "feedback": None,
+            }],
+        )
+        db.add(conversation)
+    else:
+        # Update existing conversation
+        stmt = select(CompanionConversation).where(CompanionConversation.id == session_id)
+        result_obj = await db.execute(stmt)
+        conversation = result_obj.scalars().first()
+        
+        if conversation:
+            conversation.turn_count = session.turn_number
+            # Append new message — MUST reassign entire list for SQLAlchemy to detect change
+            existing_messages = conversation.messages if isinstance(conversation.messages, list) else []
+            new_message = {
+                "turn": session.turn_number,
+                "user_message": request.message,
+                "zia_response": result["response_text"],
+                "active_skill": result["active_skill"],
+                "timestamp": timestamp,
+                "feedback": None,
+            }
+            conversation.messages = existing_messages + [new_message]
+
+    await db.commit()
 
     return ChatResponse(
         response=result["response_text"],
@@ -349,15 +400,24 @@ async def create_or_get_profile(
 ):
     """
     Find existing profile by phone, or create new one.
+    VALIDATION: If phone exists, verify name matches exactly.
     Used during onboarding — identifies returning candidates.
     """
-    # Try to find existing profile
+    # Try to find existing profile by phone
     stmt = select(CompanionProfile).where(CompanionProfile.phone == request.phone)
     result = await db.execute(stmt)
     profile = result.scalars().first()
 
-    # If not found, create new profile
-    if not profile:
+    # If profile exists, validate name matches
+    if profile:
+        if profile.name.strip().lower() != request.name.strip().lower():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Phone number is already registered with a different name. Registered name: '{profile.name}'. Please use the correct name to login.",
+            )
+        logger.info(f"Found existing profile for phone: {request.phone}")
+    else:
+        # Create new profile
         profile = CompanionProfile(
             phone=request.phone,
             name=request.name,
@@ -368,7 +428,7 @@ async def create_or_get_profile(
         db.add(profile)
         await db.commit()
         await db.refresh(profile)
-        logger.info(f"Created new profile for phone: {request.phone}")
+        logger.info(f"Created new profile for phone: {request.phone}, name: {request.name}")
 
     return CompanionProfileResponse(
         id=str(profile.id),
@@ -571,12 +631,21 @@ async def submit_candidate_feedback(
 
         if conversation and conversation.messages:
             # Find and update the message with matching turn number
+            # Create a new list with updated message to ensure SQLAlchemy detects the change
+            updated_messages = []
             for msg in conversation.messages:
                 if msg.get("turn") == request.turn_number:
-                    msg["feedback"] = request.rating
-                    break
-            conversation.messages = conversation.messages  # Trigger update
+                    # Create new dict with feedback added
+                    updated_messages.append({**msg, "feedback": request.rating})
+                else:
+                    updated_messages.append(msg)
+            # Reassign the entire list to trigger SQLAlchemy's change tracking
+            conversation.messages = updated_messages
+            # Explicitly mark the column as modified
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(conversation, "messages")
             await db.commit()
+            logger.info(f"Feedback recorded for session {request.session_id}, turn {request.turn_number}: {request.rating}")
 
         return SubmitFeedbackResponse(
             success=True,
@@ -588,3 +657,100 @@ async def submit_candidate_feedback(
             success=False,
             message=f"Failed to record feedback: {str(e)}",
         )
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# ── ADMIN Endpoints — Dashboard Data ──────────────────────────────────────────
+# ────────────────────────────────────────────────────────────────────────────────
+
+
+class ConversationSummary(BaseModel):
+    """Lightweight conversation summary for admin dashboard."""
+    id: str
+    candidate_phone: Optional[str] = None
+    candidate_name: Optional[str] = None
+    channel: str
+    started_at: str
+    turn_count: int
+    message_preview: Optional[str] = None  # First user message
+
+
+@app.get("/admin/conversations")
+async def get_all_conversations(db: AsyncSession = Depends(get_db)):
+    """
+    Get ALL conversations across all candidates for admin dashboard.
+    Returns lightweight summaries (no full message content).
+    """
+    # Get all conversations ordered by most recent first
+    stmt = (
+        select(CompanionConversation)
+        .order_by(CompanionConversation.started_at.desc())
+    )
+    result = await db.execute(stmt)
+    conversations = result.scalars().all()
+
+    # For each conversation, fetch the candidate profile to get phone/name
+    summaries = []
+    for conv in conversations:
+        # Get candidate profile
+        stmt = select(CompanionProfile).where(CompanionProfile.id == conv.candidate_id)
+        result = await db.execute(stmt)
+        profile = result.scalars().first()
+        
+        candidate_phone = profile.phone if profile else None
+        candidate_name = profile.name if profile else None
+        
+        # Get first user message as preview
+        message_preview = None
+        if conv.messages and len(conv.messages) > 0:
+            message_preview = conv.messages[0].get("user_message", "")[:100]
+        
+        summaries.append(
+            ConversationSummary(
+                id=str(conv.id),
+                candidate_phone=candidate_phone,
+                candidate_name=candidate_name,
+                channel=conv.channel,
+                started_at=conv.started_at.isoformat(),
+                turn_count=conv.turn_count,
+                message_preview=message_preview,
+            )
+        )
+
+    return summaries
+
+
+@app.get("/admin/conversations/{session_id}")
+async def get_admin_conversation_detail(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get full conversation detail for admin dashboard.
+    Includes all messages and feedback.
+    """
+    stmt = select(CompanionConversation).where(CompanionConversation.id == session_id)
+    result = await db.execute(stmt)
+    conversation = result.scalars().first()
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get candidate profile for name/phone
+    stmt = select(CompanionProfile).where(CompanionProfile.id == conversation.candidate_id)
+    result = await db.execute(stmt)
+    profile = result.scalars().first()
+
+    return {
+        "id": str(conversation.id),
+        "candidate_id": str(conversation.candidate_id),
+        "candidate_phone": profile.phone if profile else None,
+        "candidate_name": profile.name if profile else None,
+        "channel": conversation.channel,
+        "started_at": conversation.started_at.isoformat(),
+        "ended_at": conversation.ended_at.isoformat() if conversation.ended_at else None,
+        "turn_count": conversation.turn_count,
+        "relationship_stage_at_start": conversation.relationship_stage_at_start,
+        "messages": conversation.messages if conversation.messages else [],
+        "created_at": conversation.created_at.isoformat(),
+    }
