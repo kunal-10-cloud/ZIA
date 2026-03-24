@@ -60,17 +60,22 @@ logger = logging.getLogger(__name__)
 def run_migrations():
     """Run Alembic migrations on app startup"""
     try:
-        import sys
+        # Find alembic.ini by searching upward from this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        alembic_ini = None
         
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        app_root = os.path.dirname(os.path.dirname(script_dir))
+        for _ in range(5):  # Search up to 5 levels
+            test_path = os.path.join(current_dir, "alembic.ini")
+            if os.path.exists(test_path):
+                alembic_ini = test_path
+                break
+            current_dir = os.path.dirname(current_dir)
         
-        alembic_ini = os.path.join(app_root, "alembic.ini")
-        migrations_dir = os.path.join(app_root, "migrations")
-        
-        if not os.path.exists(alembic_ini):
-            logger.warning(f"alembic.ini not found at {alembic_ini}")
+        if not alembic_ini:
+            logger.warning("Could not find alembic.ini anywhere in parent directories")
             return
+        
+        migrations_dir = os.path.join(os.path.dirname(alembic_ini), "migrations")
         
         if not os.path.exists(migrations_dir):
             logger.warning(f"migrations directory not found at {migrations_dir}")
