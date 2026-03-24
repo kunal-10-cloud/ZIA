@@ -22,6 +22,7 @@ from backend.models.behavioral_signal_log import BehavioralSignalLog, SignalType
 from backend.models.candidate_identity import CandidateIdentity, IdentifierType
 from backend.models.opportunity_card import OpportunityCard
 from backend.models.memory import Memory, MemoryCategory
+from backend.models.conversation_feedback import ConversationFeedback
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "OpportunityCard",
     "Memory",
     "MemoryCategory",
+    "ConversationFeedback",
 ]
