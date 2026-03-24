@@ -11,12 +11,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies first (cached layer — only rebuilds if requirements.txt changes)
-COPY request/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY request/backend/ ./backend/
-COPY request/data/ ./data/
+COPY backend/ ./backend/
+COPY data/ ./data/
 
 # Set Python path so imports work
 ENV PYTHONPATH=/app
